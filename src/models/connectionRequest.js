@@ -37,8 +37,8 @@ connectionRequestSchema.pre("save", function (next) { // we can create this on r
   next();
 });
 
-const connectionRequestModel = new mongoose.model(
-  "connectionRequest",
+const ConnectionRequestModel = new mongoose.model(
+  "ConnectionRequest",
   connectionRequestSchema
 );
-module.exports = connectionRequestModel;
+module.exports = ConnectionRequestModel;
