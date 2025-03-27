@@ -4,22 +4,24 @@ const ConnectionRequestModel = require("../models/connectionRequest"); // Adjust
 const sendEmail = require("../utils/sendEmail"); // Ensure you have this function
 
 // Schedule cron job to run at 8 AM daily
-cron.schedule("*/10 * * * *", async () => {
+cron.schedule("0 8 * * *", async () => {
   console.log("📩 Running scheduled job to notify users with pending requests...");
 
   try {
     const yesterday = subDays(new Date(), 1);
+
     const yesterdayStart = startOfDay(yesterday);
-    // Fetch pending requests from yesterday
+    const yesterdayEnd = endOfDay(yesterday);
+
     const pendingRequests = await ConnectionRequestModel.find({
       status: "interested",
-      // createdAt: {
-      //   $gte: yesterdayStart,
-      //   $lt: yesterdayEnd,
-      // },
+      createdAt: {
+        $gte: yesterdayStart,
+        $lt: yesterdayEnd,
+      },
     }).populate("fromUserId toUserId");
 
-    const listOfEmails = [
+    const listOfEmails = [ 
       ...new Set(pendingRequests.map((req) => req.toUserId.emailId)),
     ];
 
