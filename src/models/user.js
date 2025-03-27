@@ -46,6 +46,16 @@ const userSchema = new mongoose.Schema(
         message:'{VALUE} is not valid gender type'
       } 
     },
+    isPremium :{
+      type : Boolean,
+      default : false,
+    },
+    membershipType: {
+      type : String,
+    },
+    // membershipValidity : {
+
+    // },
     photoUrl: {
       type: String,
       default: "https://geographyandyou.com/images/user-profile.png",
