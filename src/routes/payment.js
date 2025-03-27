@@ -1,101 +1,108 @@
 const express = require("express");
 const { userAuth } = require("../middlewares/auth");
 const paymentRouter = express.Router();
-// const router = express.Router(); 
 const razorpayInstance = require("../utils/razorpay");
 const Payment = require("../models/payment");
 const User = require("../models/user");
 const { membershipAmount } = require("../utils/constants");
-const {validateWebhookSignature} =  require("razorpay/dist/utils/razorpay-utils");
+const {
+  validateWebhookSignature,
+} = require("razorpay/dist/utils/razorpay-utils");
 
 paymentRouter.post("/payment/create", userAuth, async (req, res) => {
-    try {
-      const { membershipType } = req.body;
-      const { firstName, lastName, emailId } = req.user;
-  
-      const order = await razorpayInstance.orders.create({
-        amount: membershipAmount[membershipType] * 100,
-        currency: "INR",
-        receipt: "receipt#1",
-        notes: {
-          firstName,
-          lastName,
-          emailId,
-          membershipType: membershipType,
-        },
-      });
-  
-      // Save it in my database
-      console.log(order);
-  
-      const payment = new Payment({
-        userId: req.user._id,
-        orderId: order.id,
-        status: order.status,
-        amount: order.amount,
-        currency: order.currency,
-        receipt: order.receipt,
-        notes: order.notes,
-      });
-  
-      const savedPayment = await payment.save();
-  
-      // Return back my order details to frontend
-      res.json({ ...savedPayment.toJSON(), keyId: process.env.RAZORPAY_KEY_ID }); 
-    } catch (err) {
-      return res.status(500).json({ msg: err.message });
-    }
-  });
+  try {
+    const { membershipType } = req.body;
+    const { firstName, lastName, emailId } = req.user;
 
-  // userAuth is not needed for webhook 
-paymentRouter.post("/payment/webhook",async (req,res)=>{
-    try{
-      const webhookSignature = req.headers("X-Razorpay-Signature");
+    const order = await razorpayInstance.orders.create({
+      amount: membershipAmount[membershipType] * 100,
+      currency: "INR",
+      receipt: "receipt#1",
+      notes: {
+        firstName,
+        lastName,
+        emailId,
+        membershipType: membershipType,
+      },
+    });
 
-      const isWebhookValid = validateWebhookSignature(
-        JSON.stringify(req.body),
-        webhookSignature,
-        process.env.RAZORPAY_WEBHOOK_SECRET
-      );
-      // validateWebhookSignature can only be verified when an it came form authentic source 
-      if(!isWebhookValid){
-        return res.status(400).json({message:"Webhook signature is inValid"});
-      } 
+    // Save it in my database
+    console.log(order);
 
-      // IF CAPTURED
-      // update the payment Status in DB
-      const paymentDetails = req.body.payload.payment.entity;
+    const payment = new Payment({
+      userId: req.user._id,
+      orderId: order.id,
+      status: order.status,
+      amount: order.amount,
+      currency: order.currency,
+      receipt: order.receipt,
+      notes: order.notes,
+    });
 
-      const payment = await Payment.findOne({orderId:paymentDetails.order_id}); 
-      payment.status = paymentDetails.status;
-      await payment.save();
+    const savedPayment = await payment.save();
 
-      const user = await User.findOne({_id : payment.userId});
-      user.isPremium = true;
-      user.membershipType = payment.notes.membershipType;
-      await user.save();
-      // Update the User as premium 
-      // return success response to razorpay if it is not done it will keep on calling 
-      // if(req.body.event == "payment.captured"){
-
-      // }
-      // if(req.body.event == "payment.failed"){
-
-      // }
- 
-      return res.status(200).json({message :"Webhook received Successfully"});  // return success response to razorpay
-
-    }catch(err){
-      return res.status(500).json({msg:err.message});
-    }
+    // Return back my order details to frontend
+    res.json({ ...savedPayment.toJSON(), keyId: process.env.RAZORPAY_KEY_ID });
+  } catch (err) {
+    return res.status(500).json({ msg: err.message });
+  }
 });
 
-paymentRouter.get("/payment/verify",userAuth,async (req,res)=>{
-    const user = req.user.toJSON();
-    console.log(user);
-    if(user.isPremium){
-      return res.status(200).json({...user});
+paymentRouter.post("/payment/webhook", async (req, res) => {
+  try {
+    console.log("Webhook Called");
+    const webhookSignature = req.get("X-Razorpay-Signature");
+    console.log("Webhook Signature", webhookSignature);
+
+    const isWebhookValid = validateWebhookSignature(
+      JSON.stringify(req.body),
+      webhookSignature,
+      process.env.RAZORPAY_WEBHOOK_SECRET
+    );
+
+    if (!isWebhookValid) {
+      console.log("INvalid Webhook Signature");
+      return res.status(400).json({ msg: "Webhook signature is invalid" });
     }
-    return res.json({...user});
+    console.log("Valid Webhook Signature");
+
+    // Udpate my payment Status in DB
+    const paymentDetails = req.body.payload.payment.entity;
+
+    const payment = await Payment.findOne({ orderId: paymentDetails.order_id });
+    payment.status = paymentDetails.status;
+    await payment.save();
+    console.log("Payment saved");
+
+    const user = await User.findOne({ _id: payment.userId });
+    user.isPremium = true;
+    user.membershipType = payment.notes.membershipType;
+    console.log("User saved");
+
+    await user.save();
+
+    // Update the user as premium
+
+    // if (req.body.event == "payment.captured") {
+    // }
+    // if (req.body.event == "payment.failed") {
+    // }
+
+    // return success response to razorpay
+
+    return res.status(200).json({ msg: "Webhook received successfully" });
+  } catch (err) {
+    return res.status(500).json({ msg: err.message });
+  }
 });
-  module.exports = paymentRouter;
+
+paymentRouter.get("/premium/verify", userAuth, async (req, res) => {
+  const user = req.user.toJSON();
+  console.log(user);
+  if (user.isPremium) {
+    return res.json({ ...user });
+  }
+  return res.json({ ...user });
+});
+
+module.exports = paymentRouter;
