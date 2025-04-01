@@ -10,6 +10,7 @@ requestRouter.post(
   userAuth,
   async (req, res) => {
     try {
+      console.log(1);
       const fromUserId = req.user._id;
       const toUserId = req.params.toUserId;
       const status = req.params.status;
